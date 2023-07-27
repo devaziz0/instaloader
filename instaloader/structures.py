@@ -237,8 +237,8 @@ class Post:
     def _obtain_metadata(self):
         if not self._full_metadata_dict:
             pic_json = self._context.graphql_query(
-                '2b0673e0dc4580674a88d426fe00ea90',
-                {'shortcode': self.shortcode}
+                'b3055c01b4b222b8a47dc12b090e4e64',
+                {'shortcode': self.shortcode,"child_comment_count":12,"fetch_comment_count":60,"parent_comment_count":60,"has_threaded_comments":True}
             )
             self._full_metadata_dict = pic_json['data']['shortcode_media']
             if self._full_metadata_dict is None:
