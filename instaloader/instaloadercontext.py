@@ -690,7 +690,8 @@ class RateController:
         """Wait given number of seconds."""
         # Not static, to allow for the behavior of this method to depend on context-inherent properties, such as
         # whether we are logged in.
-        time.sleep(secs)
+        if self._context.sleep:
+            time.sleep(secs)
 
     def _dump_query_timestamps(self, current_time: float, failed_query_type: str):
         windows = [10, 11, 20, 22, 30, 60]
