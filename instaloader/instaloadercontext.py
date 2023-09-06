@@ -342,6 +342,9 @@ class InstaloaderContext:
         """Sleep a short time if self.sleep is set. Called before each request to instagram.com."""
         if self.sleep:
             time.sleep(min(random.expovariate(0.6), 15.0))
+    def switch_proxy(self, proxy_path="/app/proxies/proxies.txt"):
+        proxy = random.choice(open(proxy_path).read().splitlines())
+        return proxy
 
     def get_json(self, path: str, params: Dict[str, Any], host: str = 'www.instagram.com',
                  session: Optional[requests.Session] = None, _attempt=1,
@@ -360,7 +363,10 @@ class InstaloaderContext:
         is_graphql_query = 'query_hash' in params and 'graphql/query' in path
         is_iphone_query = host == 'i.instagram.com'
         is_other_query = not is_graphql_query and host == "www.instagram.com"
+        proxy = self.switch_proxy()
+        proxies = {'http': proxy,"https":proxy}
         sess = session if session else self._session
+        sess.proxies.update(proxies)
         try:
             self.do_sleep()
             if is_graphql_query:
