@@ -23,6 +23,9 @@ from .exceptions import *
 
 def copy_session(session: requests.Session, request_timeout: Optional[float] = None) -> requests.Session:
     """Duplicates a requests.Session."""
+    import http.client
+        # pylint:disable=protected-access
+    http.client._MAXHEADERS = 1000
     new = requests.Session()
     new.cookies = requests.utils.cookiejar_from_dict(requests.utils.dict_from_cookiejar(session.cookies))
     new.headers = session.headers.copy()  # type: ignore
@@ -33,8 +36,7 @@ def copy_session(session: requests.Session, request_timeout: Optional[float] = N
 
 
 def default_user_agent() -> str:
-    return 'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 ' \
-           '(KHTML, like Gecko) Chrome/92.0.4515.131 Safari/537.36'
+    return 'Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:120.0) Gecko/20100101 Firefox/120.0'
 
 
 def default_iphone_headers() -> Dict[str, Any]:
@@ -187,7 +189,9 @@ class InstaloaderContext:
                   'Referer': 'https://www.instagram.com/',
                   'User-Agent': self.user_agent,
                   'X-Instagram-AJAX': '1',
-                  'X-Requested-With': 'XMLHttpRequest'}
+                  'X-Requested-With': 'XMLHttpRequest',
+                  "x-ig-app-id":"936619743392459"
+                  }
         if empty_session_only:
             del header['Host']
             del header['Origin']
@@ -200,7 +204,7 @@ class InstaloaderContext:
         session = requests.Session()
         session.cookies.update({'sessionid': '', 'mid': '', 'ig_pr': '1',
                                 'ig_vw': '1920', 'csrftoken': '',
-                                's_network': '', 'ds_user_id': ''})
+                                's_network': '', 'ds_user_id': '','x-ig-app-id':'936619743392459'})
         session.headers.update(self._default_http_header(empty_session_only=True))
         # Override default timeout behavior.
         # Need to silence mypy bug for this. See: https://github.com/python/mypy/issues/2427
@@ -247,7 +251,7 @@ class InstaloaderContext:
         # pylint:disable=import-outside-toplevel
         import http.client
         # pylint:disable=protected-access
-        http.client._MAXHEADERS = 200
+        http.client._MAXHEADERS = 1000
         session = requests.Session()
         session.cookies.update({'sessionid': '', 'mid': '', 'ig_pr': '1',
                                 'ig_vw': '1920', 'ig_cb': '1', 'csrftoken': '',
@@ -342,13 +346,13 @@ class InstaloaderContext:
         """Sleep a short time if self.sleep is set. Called before each request to instagram.com."""
         if self.sleep:
             time.sleep(min(random.expovariate(0.6), 15.0))
-    def switch_proxy(self, proxy_path="/app/proxies/proxies.txt"):
+    def switch_proxy(self, proxy_path="/home/aziz/influency/proxies/proxies.txt"):
         proxy = random.choice(open(proxy_path).read().splitlines())
         return proxy
 
     def get_json(self, path: str, params: Dict[str, Any], host: str = 'www.instagram.com',
                  session: Optional[requests.Session] = None, _attempt=1,
-                 response_headers: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+                 response_headers: Optional[Dict[str, Any]] = None,is_post=False,body=None) -> Dict[str, Any]:
         """JSON request to Instagram.
 
         :param path: URL, relative to the given domain which defaults to www.instagram.com/
@@ -364,8 +368,11 @@ class InstaloaderContext:
         is_iphone_query = host == 'i.instagram.com'
         is_other_query = not is_graphql_query and host == "www.instagram.com"
         proxy = self.switch_proxy()
-        proxies = {'http': proxy,"https":proxy}
+        proxies = {"https":proxy,"http":proxy}
         sess = session if session else self._session
+        import http.client
+        # pylint:disable=protected-access
+        http.client._MAXHEADERS = 1000
         sess.proxies.update(proxies)
         try:
             self.do_sleep()
@@ -375,7 +382,12 @@ class InstaloaderContext:
                 self._rate_controller.wait_before_query('iphone')
             if is_other_query:
                 self._rate_controller.wait_before_query('other')
-            resp = sess.get('https://{0}/{1}'.format(host, path), params=params, allow_redirects=False)
+            if is_post:
+                resp = sess.post('https://{0}/{1}'.format(host, path), data=body, allow_redirects=False,verify=False)
+            else:
+                resp = sess.get('https://{0}/{1}'.format(host, path), params=params, allow_redirects=False,verify=False)
+
+
             if resp.status_code in self.fatal_status_codes:
                 redirect = " redirect to {}".format(resp.headers['location']) if 'location' in resp.headers else ""
                 body = ""
@@ -414,11 +426,15 @@ class InstaloaderContext:
                 # Extract JSON from HTML response
                 match = re.search('(?<={"raw":").*?(?<!\\\\)(?=")', resp.text)
                 if match is None:
-                    raise QueryReturnedNotFoundException("Could not find JSON data in html response.")
-                # Unescape escaped JSON string
-                unescaped_string = match.group(0).encode("utf-8").decode("unicode_escape")
-                resp_json = json.loads(unescaped_string)
-                return resp_json
+                    unescaped_string =  resp.content.decode(encoding='utf-8', errors='ignore')
+                    
+                
+                    try:
+                        resp_json = json.loads(unescaped_string)
+                    except Exception:
+                        raise QueryReturnedNotFoundException("Could not find JSON data in html response.")
+
+                    return resp_json
             else:
                 resp_json = resp.json()
             if 'status' in resp_json and resp_json['status'] != "ok":
@@ -523,7 +539,7 @@ class InstaloaderContext:
             data = _query()
             yield from (edge['node'] for edge in data['edges'])
 
-    def get_iphone_json(self, path: str, params: Dict[str, Any]) -> Dict[str, Any]:
+    def get_iphone_json(self, path: str, params: Dict[str, Any],is_post=False) -> Dict[str, Any]:
         """JSON request to ``i.instagram.com``.
 
         :param path: URL, relative to ``i.instagram.com/``
@@ -576,7 +592,7 @@ class InstaloaderContext:
                 tempsession.cookies.clear()
 
             response_headers = dict()    # type: Dict[str, Any]
-            response = self.get_json(path, params, 'i.instagram.com', tempsession, response_headers=response_headers)
+            response = self.get_json(path, params, 'i.instagram.com', tempsession, response_headers=response_headers,is_post=is_post)
 
             # Extract the ig-set-* headers and use them in the next request
             for key, value in response_headers.items():

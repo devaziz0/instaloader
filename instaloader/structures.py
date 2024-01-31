@@ -89,6 +89,72 @@ def _optional_normalize(string: Optional[str]) -> Optional[str]:
     else:
         return None
 
+class Reel:
+    def __init__(self, context: InstaloaderContext, node: Dict[str, Any]):
+
+        self._context = context
+        self._node = node
+        self._full_metadata_dict: Optional[Dict[str, Any]] = None
+        self._location: Optional[PostLocation] = None
+
+    def _field(self, *keys) -> Any:
+        """Lookups given fields in _node, and if not found in _full_metadata. Raises KeyError if not found anywhere."""
+        
+        d = self._node
+        for key in keys:
+            d = d[key]
+        return d
+
+    @property
+    def shortcode(self) -> str:
+        """Media shortcode. URL of the post is instagram.com/p/<shortcode>/."""
+        return self._node['code']
+
+
+    @property
+    def title(self) -> Optional[str]:
+        """Title of post"""
+        try:
+            return self._field('title')
+        except KeyError:
+            return None
+    
+    
+    def _get_timestamp_date_created(self) -> float:
+        """Timestamp when the post was created"""
+        return (self._node["date"]
+                if "date" in self._node
+                else self._node["taken_at_timestamp"])
+    
+    @property
+    def likes(self):
+        return self._field("like_count")
+    @property
+    def comments(self):
+        return self._field("comment_count")
+    @property
+    def video_view_count(self):
+        return self._field("play_count")
+
+    @property
+    def is_video(self):
+        return True
+    
+    @property
+    def caption(self):
+        return self._node["caption"]["text"]
+
+    @property
+    def caption_hashtags(self):
+        if not self.caption:
+            return []
+        return _mention_regex.findall(self.caption.lower())
+    @property
+    def url(self):
+        
+        orig_url = self._node['image_versions2']['candidates'][0]['url']
+        url = re.sub(r'([?&])se=\d+&?', r'\1', orig_url).rstrip('&')
+        return url
 
 class Post:
     """
@@ -1041,6 +1107,26 @@ class Profile:
             Profile._make_is_newest_checker()
         )
 
+    def get_reels(self) -> NodeIterator[Post]:
+        """Retrieve all reels from a profile.
+
+        :rtype: NodeIterator[Post]"""
+        self._obtain_metadata()
+        
+
+        files = {
+    'target_user_id':(None, str(self.userid)),
+    'page_size':(None, '12'),
+    'include_feed_video':(None, 'true'),
+}
+        json_response = self._context.get_json("api/v1/clips/user/",params={} ,body=files,is_post=True)
+        json_response["graphql"]["hashtag"] if "graphql" in json_response else json_response["items"]
+    
+        conn = json_response["items"]
+        yield from (Reel(self._context, edge["media"]) for edge in conn)
+
+
+
     def get_saved_posts(self) -> NodeIterator[Post]:
         """Get Posts that are marked as saved by the user.
 
@@ -1667,13 +1753,16 @@ class Hashtag:
         """Hashtag name lowercased, without preceeding '#'"""
         return self._node["name"].lower()
 
+
+    
     def _query(self, params):
-        json_response = self._context.get_json("explore/tags/{0}/".format(self.name), params)
+
+        json_response = self._context.get_json("api/v1/tags/logged_out_web_info/?tag_name={0}".format(self.name),params=params)
         return json_response["graphql"]["hashtag"] if "graphql" in json_response else json_response["data"]
 
     def _obtain_metadata(self):
         if not self._has_full_metadata:
-            self._node = self._query({"__a": 1, "__d": "dis"})
+            self._node = self._query({})["hashtag"]
             self._has_full_metadata = True
 
     def _asdict(self):
@@ -1770,7 +1859,7 @@ class Hashtag:
             conn = self._metadata("edge_hashtag_to_media")
             yield from (Post(self._context, edge["node"]) for edge in conn["edges"])
             while conn["page_info"]["has_next_page"]:
-                data = self._query({'__a': 1, 'max_id': conn["page_info"]["end_cursor"]})
+                data = self._query({'max_id': conn["page_info"]["end_cursor"]})["hashtag"]
                 conn = data["edge_hashtag_to_media"]
                 yield from (Post(self._context, edge["node"]) for edge in conn["edges"])
         except KeyError:
