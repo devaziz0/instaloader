@@ -86,7 +86,7 @@ class InstaloaderContext:
                  max_connection_attempts: int = 3, request_timeout: float = 300.0,
                  rate_controller: Optional[Callable[["InstaloaderContext"], "RateController"]] = None,
                  fatal_status_codes: Optional[List[int]] = None,
-                 iphone_support: bool = True):
+                 iphone_support: bool = True,proxies_path:str=""):
 
         self.user_agent = user_agent if user_agent is not None else default_user_agent()
         self.request_timeout = request_timeout
@@ -101,6 +101,7 @@ class InstaloaderContext:
         self.two_factor_auth_pending = None
         self.iphone_support = iphone_support
         self.iphone_headers = default_iphone_headers()
+        self.proxies_path= proxies_path
 
         # error log, filled with error() and printed at the end of Instaloader.main()
         self.error_log: List[str] = []
@@ -346,8 +347,8 @@ class InstaloaderContext:
         """Sleep a short time if self.sleep is set. Called before each request to instagram.com."""
         if self.sleep:
             time.sleep(min(random.expovariate(0.6), 15.0))
-    def switch_proxy(self, proxy_path="/home/aziz/influency/proxies/proxies.txt"):
-        proxy = random.choice(open(proxy_path).read().splitlines())
+    def switch_proxy(self):
+        proxy = random.choice(open(self.proxies_path).read().splitlines())
         return proxy
 
     def get_json(self, path: str, params: Dict[str, Any], host: str = 'www.instagram.com',
