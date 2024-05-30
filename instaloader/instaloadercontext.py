@@ -348,8 +348,9 @@ class InstaloaderContext:
         if self.sleep:
             time.sleep(min(random.expovariate(0.6), 15.0))
     def switch_proxy(self):
-        proxy = random.choice(open(self.proxies_path).read().splitlines())
-        return proxy
+        with open(self.proxies_path) as f:
+            proxy = random.choice(f.read().splitlines())
+            return proxy
 
     def get_json(self, path: str, params: Dict[str, Any], host: str = 'www.instagram.com',
                  session: Optional[requests.Session] = None, _attempt=1,
@@ -387,7 +388,7 @@ class InstaloaderContext:
                 resp = sess.post('https://{0}/{1}'.format(host, path), data=body, allow_redirects=False,verify=False)
             else:
                 resp = sess.get('https://{0}/{1}'.format(host, path), params=params, allow_redirects=False,verify=False)
-
+                print(params)
 
             if resp.status_code in self.fatal_status_codes:
                 redirect = " redirect to {}".format(resp.headers['location']) if 'location' in resp.headers else ""
@@ -426,6 +427,7 @@ class InstaloaderContext:
             if is_html_query:
                 # Extract JSON from HTML response
                 match = re.search('(?<={"raw":").*?(?<!\\\\)(?=")', resp.text)
+                
                 if match is None:
                     unescaped_string =  resp.content.decode(encoding='utf-8', errors='ignore')
                     

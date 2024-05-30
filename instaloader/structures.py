@@ -710,6 +710,8 @@ class Post:
             return False
         return bool(sponsor_edges)
 
+
+
     @property
     def sponsor_users(self) -> List['Profile']:
         """
@@ -721,7 +723,6 @@ class Post:
                 [Profile(self._context, edge['node']['sponsor']) for edge in
                  self._field('edge_media_to_sponsor_user', 'edges')])
 
-    @property
     def location(self) -> Optional[PostLocation]:
         """
         If the Post has a location, returns PostLocation NamedTuple with fields 'id', 'lat' and 'lng' and 'name'.
@@ -732,12 +733,11 @@ class Post:
         loc = self._field("location")
         if self._location or not loc:
             return self._location
-        if not self._context.is_logged_in:
-            return None
+        
         location_id = int(loc['id'])
         if any(k not in loc for k in ('name', 'slug', 'has_public_page', 'lat', 'lng')):
-            loc.update(self._context.get_json("explore/locations/{0}/".format(location_id),
-                                              params={'__a': 1, '__d': 'dis'})['native_location_data']['location_info'])
+            loc.update(self._context.get_json(f"api/v1/locations/web_info/",
+                                              params={"location_id":location_id,"show_nearby":False,})['native_location_data']['location_info'])
         self._location = PostLocation(location_id, loc['name'], loc['slug'], loc['has_public_page'],
                                       loc.get('lat'), loc.get('lng'))
         return self._location
@@ -876,6 +876,16 @@ class Profile:
                 self._node = metadata['data']['user']
                 self._has_full_metadata = True
         except (QueryReturnedNotFoundException, KeyError) as err:
+            top_search_results = TopSearchResults(self._context, self.username)
+            similar_profiles = [profile.username for profile in top_search_results.get_profiles()]
+            if similar_profiles:
+                if self.username in similar_profiles:
+                    raise ProfileNotExistsException(
+                        f"Profile {self.username} seems to exist, but could not be loaded.") from err
+                raise ProfileNotExistsException('Profile {} does not exist.\nThe most similar profile{}: {}.'
+                                                .format(self.username,
+                                                        's are' if len(similar_profiles) > 1 else ' is',
+                                                        ', '.join(similar_profiles[0:5]))) from err
             raise ProfileNotExistsException('Profile {} does not exist.'.format(self.username)) from err
 
     def _metadata(self, *keys) -> Any:
