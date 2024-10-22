@@ -385,11 +385,11 @@ class Post:
 
     def _obtain_metadata(self):
         if not self._full_metadata_dict:
-            pic_json = self._context.graphql_query(
-                'b3055c01b4b222b8a47dc12b090e4e64',
-                {'shortcode': self.shortcode,"child_comment_count":12,"fetch_comment_count":60,"parent_comment_count":60,"has_threaded_comments":True}
+            pic_json = self._context.doc_id_graphql_query(
+                doc_id="8845758582119845",
+                variables={'shortcode': self.shortcode}
             )
-            self._full_metadata_dict = pic_json['data']['shortcode_media']
+            self._full_metadata_dict = pic_json['data']['xdt_shortcode_media']
             if self._full_metadata_dict is None:
                 raise BadResponseException("Fetching Post metadata failed.")
             if self.shortcode != self._full_metadata_dict['shortcode']:
