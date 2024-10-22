@@ -197,7 +197,6 @@ class InstaloaderContext:
                   'User-Agent': self.user_agent,
                   'X-Instagram-AJAX': '1',
                   'X-Requested-With': 'XMLHttpRequest',
-                  "x-ig-app-id":"936619743392459"
                   }
         if empty_session_only:
             del header['Host']
@@ -211,7 +210,7 @@ class InstaloaderContext:
         session = requests.Session()
         session.cookies.update({'sessionid': '', 'mid': '', 'ig_pr': '1',
                                 'ig_vw': '1920', 'csrftoken': '',
-                                's_network': '', 'ds_user_id': '','x-ig-app-id':'936619743392459'})
+                                's_network': '', 'ds_user_id': '',})
         session.headers.update(self._default_http_header(empty_session_only=True))
         # Override default timeout behavior.
         # Need to silence mypy bug for this. See: https://github.com/python/mypy/issues/2427
@@ -619,7 +618,7 @@ class InstaloaderContext:
             data = _query()
             yield from (edge['node'] for edge in data['edges'])
 
-    def get_iphone_json(self, path: str, params: Dict[str, Any],is_post=False) -> Dict[str, Any]:
+    def get_iphone_json(self, path: str, params: Dict[str, Any],use_post=False) -> Dict[str, Any]:
         """JSON request to ``i.instagram.com``.
 
         :param path: URL, relative to ``i.instagram.com/``
@@ -672,7 +671,7 @@ class InstaloaderContext:
                 tempsession.cookies.clear()
 
             response_headers = dict()    # type: Dict[str, Any]
-            response = self.get_json(path, params, 'i.instagram.com', tempsession, response_headers=response_headers,is_post=is_post)
+            response = self.get_json(path, params, 'i.instagram.com', tempsession, response_headers=response_headers,use_post=use_post)
 
             # Extract the ig-set-* headers and use them in the next request
             for key, value in response_headers.items():

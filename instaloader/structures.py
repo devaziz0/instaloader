@@ -1275,7 +1275,7 @@ class Profile:
     'page_size':(None, '12'),
     'include_feed_video':(None, 'true'),
 }
-        json_response = self._context.get_json("api/v1/clips/user/",params={} ,body=files,is_post=True)
+        json_response = self._context.get_json("api/v1/clips/user/",params={} ,body=files,use_post=True)
         json_response["graphql"]["hashtag"] if "graphql" in json_response else json_response["items"]
     
         conn = json_response["items"]
