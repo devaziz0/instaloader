@@ -197,6 +197,7 @@ class InstaloaderContext:
                   'User-Agent': self.user_agent,
                   'X-Instagram-AJAX': '1',
                   'X-Requested-With': 'XMLHttpRequest',
+                  'x-ig-app-id':'936619743392459'
                   }
         if empty_session_only:
             del header['Host']
