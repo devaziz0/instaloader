@@ -2,6 +2,7 @@ import json
 import os
 import pickle
 import random
+import re
 import shutil
 import sys
 import textwrap
@@ -395,7 +396,8 @@ class InstaloaderContext:
 
     def get_json(self, path: str, params: Dict[str, Any], host: str = 'www.instagram.com',
                  session: Optional[requests.Session] = None, _attempt=1,
-                 response_headers: Optional[Dict[str, Any]] = None,is_post=False,body=None) -> Dict[str, Any]:
+                 response_headers: Optional[Dict[str, Any]] = None,
+                 use_post: bool = False) -> Dict[str, Any]:
         """JSON request to Instagram.
 
         :param path: URL, relative to the given domain which defaults to www.instagram.com/
@@ -468,6 +470,22 @@ class InstaloaderContext:
             if resp.status_code == 429:
                 raise TooManyRequestsException(self._response_error(resp))
             if resp.status_code != 200:
+                raise ConnectionException("HTTP error code {}.".format(resp.status_code))
+            is_html_query = not is_graphql_query and not "__a" in params and host == "www.instagram.com"
+            if is_html_query:
+                # Extract JSON from HTML response
+                match = re.search('(?<={"raw":").*?(?<!\\\\)(?=")', resp.text)
+                
+                if match is None:
+                    unescaped_string =  resp.content.decode(encoding='utf-8', errors='ignore')
+                    
+                
+                    try:
+                        resp_json = json.loads(unescaped_string)
+                    except Exception:
+                        raise QueryReturnedNotFoundException("Could not find JSON data in html response.")
+
+                    return resp_json
                 raise ConnectionException(self._response_error(resp))
             else:
                 resp_json = resp.json()
